@@ -9,16 +9,8 @@ export class ArrayIteration extends Array {
    * @param {Iterable<T>} iterable 
    */
   constructor(iterable) {
+    super();
     this[SymbolArraySource] = iterable;
-  }
-  get length() {
-    if ("length" in this[SymbolArraySource]) {
-      return toLength(this[SymbolArraySource]);
-    }
-    return NaN; // unknown length
-  }
-  set length() {
-    // no-op
   }
 
   concat(...args) {
@@ -36,25 +28,18 @@ export class ArrayIteration extends Array {
   }
 
   *entries() {
-    if (!(SymbolArraySource in this)) {
-      yield* super.entries();
-    }
-    let k = 0;
-    for (const item of this[SymbolArraySource]) {
-      yield [item, k];
-      k++;
+    for (const [kValue, k] of iterate(this)) {
+      yield [kValue, k];
     }
   }
 
   every(callbackfn, thisArg) {
-    if (!(SymbolArraySource in this)) {
-      return super.every(callbackfn, thisArg);
-    }
-    let k = 0;
-    for (const item of this[SymbolArraySource]) {
-      const testResult = call(callbackfn, thisArg, [item, k, this]);
-      if (!testResult) {
-        return false;
+    for (const [kValue, k, kPresent] of iterate(this)) {
+      if (kPresent) {
+        const testResult = call(callbackfn, thisArg, [kValue, k, this]);
+        if (!testResult) {
+          return false;
+        }
       }
       k++;
     }
@@ -69,15 +54,13 @@ export class ArrayIteration extends Array {
   }
 
   filter(callbackfn, thisArg) {
-    if (!(SymbolArraySource in this)) {
-      return super.filter(callbackfn, thisArg);
-    }
-    let k = 0;
     const newArray = [];
-    for (const item of this[SymbolArraySource]) {
-      const selected = call(callbackfn, thisArg, [item, k, this]);
-      if (selected) {
-        newArray.push(item);
+    for (const [kValue, k, kPresent] of iterate(this)) {
+      if (kPresent) {
+        const selected = call(callbackfn, thisArg, [kValue, k, this]);
+        if (selected) {
+          newArray.push(kValue);
+        }
       }
       k++;
     }
@@ -85,28 +68,24 @@ export class ArrayIteration extends Array {
   }
 
   find(predicate, thisArg) {
-    if (!(SymbolArraySource in this)) {
-      return super.find(predicate, thisArg);
-    }
-    let k = 0;
-    for (const item of this[SymbolArraySource]) {
-      const selected = call(predicate, thisArg, [item, k, this]);
-      if (selected) {
-        return item;
+    for (const [kValue, k, kPresent] of iterate(this)) {
+      if (kPresent) {
+        const selected = call(predicate, thisArg, [kValue, k, this]);
+        if (selected) {
+          return kValue;
+        }
       }
       k++;
     }
   }
 
   findIndex(predicate, thisArg) {
-    if (!(SymbolArraySource in this)) {
-      return super.findIndex(predicate, thisArg);
-    }
-    let k = 0;
-    for (const item of this[SymbolArraySource]) {
-      const selected = call(predicate, thisArg, [item, k, this]);
-      if (selected) {
-        return k;
+    for (const [kValue, k, kPresent] of iterate(this)) {
+      if (kPresent) {
+        const selected = call(predicate, thisArg, [kValue, k, this]);
+        if (selected) {
+          return k;
+        }
       }
       k++;
     }
@@ -114,25 +93,36 @@ export class ArrayIteration extends Array {
   }
 
   forEach(callbackfn, thisArg) {
-    if (!(SymbolArraySource in this)) {
-      return super.forEach(callbackfn, thisArg);
-    }
-    let k = 0;
-    for (const item of this[SymbolArraySource]) {
-      call(predicate, thisArg, [item, k, this]);
+    for (const [kValue, k, kPresent] of iterate(this)) {
+      if (kPresent) {
+        call(predicate, thisArg, [kValue, k, this]);
+      }
       k++;
     }
   }
 
   includes(searchElement, fromIndex) {
-    if (!(SymbolArraySource in this)) {
-      return super.includes(searchElement, fromIndex);
-    }
-    for (const item of this[SymbolArraySource]) {
-      if (sameValueZero(searchElement, item)) {
+    for (const [kValue] of iterate(this)) {
+      if (sameValueZero(searchElement, kValue)) {
         return true;
       }
     }
+    return false;
+  }
+}
+
+function *iterate(object) {
+  const target = object[SymbolArraySource] || object;
+  if (Symbol.iterator in target) {
+    const k = 0;
+    for (const item of target[Symbol.iterator]()) {
+      yield [item, k, true];
+      k++;
+    }
+  }
+  const len = toLength(target.length);
+  for (let k = 0; k < len; k++) {
+    yield [target[k], k, k in target];
   }
 }
 
